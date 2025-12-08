@@ -16,11 +16,15 @@ Functions:
     get_term_info()
 """
 
+from __future__ import annotations
+
 import json
 import os.path
 from enum import Enum
 from itertools import zip_longest
-from typing import Any, Dict, Generator, Iterable, Tuple
+from typing import Any, Dict, Generator, Iterable, Tuple, TypeVar
+
+from typing_extensions import TypedDict
 
 GIR_REWRITE = {
     "GIR:CAL1": "Calculus I (GIR)",
@@ -118,6 +122,122 @@ class Term(Enum):
     SU = "summer"
 
 
+class CourseData(TypedDict):
+    nonext: bool
+    repeat: bool
+    url: str
+    final: bool
+    half: int | bool
+    limited: bool
+    new: bool
+
+
+class QuarterInfo(TypedDict, total=False):
+    start: tuple[int, int]
+    end: tuple[int, int]
+
+
+class Attributes(TypedDict):
+    hassH: bool
+    hassA: bool
+    hassS: bool
+    hassE: bool
+    cih: bool
+    cihw: bool
+    rest: bool
+    lab: bool
+    partLab: bool
+
+
+class ScheduleInfo(TypedDict, total=False):
+    tba: bool
+    sectionKinds: list[str]
+    lectureRawSections: list[str]
+    recitationRawSections: list[str]
+    labRawSections: list[str]
+    designRawSections: list[str]
+    lectureSections: list[tuple[list[tuple[int, int]], str]]
+    recitationSections: list[tuple[list[tuple[int, int]], str]]
+    labSections: list[tuple[list[tuple[int, int]], str]]
+    designSections: list[tuple[list[tuple[int, int]], str]]
+
+
+class FireroadRawData(TypedDict):
+    subject_id: str
+    title: str
+    description: str
+    instructors: list[str]
+    virtual_status: str
+    lecture_units: int
+    lab_units: int
+    preparation_units: int
+    level: int
+    is_variable_units: bool
+    joint_subjects: list[str]
+    meets_with_subjects: list[str]
+    quarter_information: str
+    hass_attribute: str
+    communication_requirement: str
+    gir_attribute: str
+    offered_fall: bool
+    offered_IAP: bool
+    offered_spring: bool
+    offered_summer: bool
+    prerequisites: str
+    schedule: str
+    schedule_fall: str
+    schedule_IAP: str
+    schedule_spring: str
+    old_id: str
+    rating: float
+    in_class_hours: float
+    out_of_class_hours: float
+    enrollment_number: int
+
+
+class FireroadCourseDict(TypedDict, total=False):
+    number: str
+    course: str
+    subject: str
+    terms: list[str]
+    prereqs: str
+    tba: bool
+    sectionKinds: list[str]
+    lectureSections: list[tuple[list[tuple[int, int]], str]]
+    recitationSections: list[tuple[list[tuple[int, int]], str]]
+    labSections: list[tuple[list[tuple[int, int]], str]]
+    designSections: list[tuple[list[tuple[int, int]], str]]
+    lectureRawSections: list[str]
+    recitationRawSections: list[str]
+    labRawSections: list[str]
+    designRawSections: list[str]
+    hassH: bool
+    hassA: bool
+    hassS: bool
+    hassE: bool
+    cih: bool
+    cihw: bool
+    rest: bool
+    lab: bool
+    partLab: bool
+    lectureUnits: int
+    labUnits: int
+    preparationUnits: int
+    level: int
+    isVariableUnits: bool
+    same: str
+    meets: str
+    quarterInfo: QuarterInfo
+    oldNumber: str
+    rating: float
+    hours: float
+    size: int
+    description: str
+    name: str
+    inCharge: str
+    virtualStatus: bool
+
+
 def find_timeslot(day: str, slot: str, is_slot_pm: bool) -> int:
     """
     Finds the numeric code for a timeslot.
@@ -142,7 +262,10 @@ def find_timeslot(day: str, slot: str, is_slot_pm: bool) -> int:
     return DAYS[day] + time_dict[slot]
 
 
-def zip_strict(*iterables: Iterable[Any]) -> Generator[Tuple[Any, ...], Any, None]:
+_T = TypeVar("_T")
+
+
+def zip_strict(*iterables: Iterable[_T]) -> Generator[Tuple[_T, ...], Any, None]:
     """
     Helper function for grouper.
     Groups values of the iterator on the same iteration together.
@@ -157,12 +280,12 @@ def zip_strict(*iterables: Iterable[Any]) -> Generator[Tuple[Any, ...], Any, Non
     for group in zip_longest(*iterables, fillvalue=sentinel):
         if any(sentinel is t for t in group):
             raise ValueError("Iterables have different lengths")
-        yield group
+        yield group  # type: ignore
 
 
 def grouper(
-    iterable: Iterable[Any], group_size: int
-) -> Generator[Tuple[Any, ...], Any, None]:
+    iterable: Iterable[_T], group_size: int
+) -> Generator[Tuple[_T, ...], Any, None]:
     """
     Groups items of the iterable in equally spaced blocks of group_size items.
     If the iterable's length ISN'T a multiple of group_size, you'll get a

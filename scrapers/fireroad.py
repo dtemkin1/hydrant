@@ -26,15 +26,19 @@ from __future__ import annotations
 import json
 import os.path
 import socket
-from collections.abc import Mapping, MutableMapping, Sequence
+from collections.abc import MutableMapping
 from functools import lru_cache
-from typing import Any, Union
 from urllib.error import URLError
 from urllib.request import urlopen
 
 from .utils import (
     GIR_REWRITE,
     MONTHS,
+    Attributes,
+    FireroadCourseDict,
+    FireroadRawData,
+    QuarterInfo,
+    ScheduleInfo,
     Term,
     find_timeslot,
     get_term_info,
@@ -120,7 +124,7 @@ def parse_section(section: str) -> tuple[list[tuple[int, int]], str]:
     return slots, place
 
 
-def parse_schedule(schedule: str) -> dict[str, Union[list[str], bool]]:
+def parse_schedule(schedule: str) -> ScheduleInfo:
     """
     Parses the schedule string, which looks like:
     "Lecture,32-123/TR/0/11/F/0/2;Recitation,2-147/MW/0/10,2-142/MW/0/11"
@@ -129,10 +133,10 @@ def parse_schedule(schedule: str) -> dict[str, Union[list[str], bool]]:
         schedule (str): The schedule string.
 
     Returns:
-        dict[str, Union[list[str], bool]]: The parsed schedule
+        ScheduleInfo: The parsed schedule
     """
     section_tba = False
-    result: dict[str, Union[list[str], bool]] = {}
+    result: ScheduleInfo = {}
 
     # Kinds of sections that exist.
     result["sectionKinds"] = []
@@ -150,11 +154,11 @@ def parse_schedule(schedule: str) -> dict[str, Union[list[str], bool]]:
         result["sectionKinds"].append(kind)
 
         # Raw section times, e.g. T9.301-11 or TR1,F2.
-        result[kind + "RawSections"] = sections
+        result[kind + "RawSections"] = sections  # type: ignore
 
         # Section timeslots and rooms.
         kind_section_name = kind + "Sections"
-        result[kind_section_name] = []
+        result[kind_section_name] = []  # type: ignore
         for info in sections:
             if info == "TBA":
                 section_tba = True
@@ -166,7 +170,7 @@ def parse_schedule(schedule: str) -> dict[str, Union[list[str], bool]]:
     return result
 
 
-def decode_quarter_date(date: str) -> Union[tuple[int, int], None]:
+def decode_quarter_date(date: str) -> tuple[int, int] | None:
     """
     Decodes a quarter date into a month and day.
 
@@ -174,7 +178,7 @@ def decode_quarter_date(date: str) -> Union[tuple[int, int], None]:
         date (str): The date in the format "4/4" or "apr 4".
 
     Returns:
-        Union[tuple[int, int], None]: The month and day.
+        tuple[int, int] | None: The month and day.
     """
     if "/" in date:
         month, day = date.split("/")
@@ -187,8 +191,8 @@ def decode_quarter_date(date: str) -> Union[tuple[int, int], None]:
 
 
 def parse_quarter_info(
-    course: Mapping[str, Union[bool, float, int, Sequence[str], str]],
-) -> dict[str, dict[str, tuple[int, int]]]:
+    course: FireroadRawData,
+) -> QuarterInfo | None:
     """
     Parses quarter info from the course.
     If quarter information key is present, returns either start date, end date, or both.
@@ -202,48 +206,47 @@ def parse_quarter_info(
         dates can appear as either "4/4" or "apr 4".
 
     Args:
-        course (dict[str, Union[bool, float, int, list[str], str]]): The course object.
+        course (FireroadRawData): The course object.
 
     Returns:
-        dict[str, dict[str, tuple[int, int]]]: The parsed quarter info.
+        QuarterInfo | None: The parsed quarter info.
     """
 
-    quarter_info: str = course.get("quarter_information", "")  # type: ignore
+    quarter_info = course.get("quarter_information", "")
     if quarter_info:
         quarter_info_list = quarter_info.split(",")
 
         if quarter_info_list[0] == "0":
             end_date = decode_quarter_date(quarter_info_list[1])
             if end_date:
-                return {"quarterInfo": {"end": end_date}}
+                return {"end": end_date}
 
         elif quarter_info_list[0] == "1":
             start_date = decode_quarter_date(quarter_info_list[1])
             if start_date:
-                return {"quarterInfo": {"start": start_date}}
+                return {"start": start_date}
 
         elif quarter_info_list[0] == "2" and "to" in quarter_info_list[1]:
             dates = quarter_info_list[1].split(" to ")
             start_date = decode_quarter_date(dates[0])
             end_date = decode_quarter_date(dates[1])
             if start_date and end_date:
-                return {"quarterInfo": {"start": start_date, "end": end_date}}
+                return {"start": start_date, "end": end_date}
 
-    return {}
+    return None
 
 
 def parse_attributes(
-    course: Mapping[str, Union[bool, float, int, Sequence[str], str]],
-) -> dict[str, bool]:
+    course: FireroadRawData,
+) -> Attributes:
     """
     Parses attributes of the course.
 
     Args:
-        course (Mapping[str, Union[bool, float, int, list[str], str]]):
-            The course object.
+        course (FireroadRawData): The course object.
 
     Returns:
-        dict[str, bool]: The attributes of the course.
+        Attributes: The attributes of the course.
     """
     hass_code: str = course.get("hass_attribute", "X")[-1]  # type: ignore
     comms_code: str = course.get("communication_requirement", "")  # type: ignore
@@ -263,17 +266,16 @@ def parse_attributes(
 
 
 def parse_terms(
-    course: Mapping[str, Union[bool, float, int, Sequence[str], str]],
-) -> dict[str, list[str]]:
+    course: FireroadRawData,
+) -> list[str]:
     """
     Parses the terms of the course.
 
     Args:
-        course (Mapping[str, Union[bool, float, int, Sequence[str], str]]):
-            The course object.
+        course (FireroadRawData): The course object.
 
     Returns:
-        dict[str, list[str]]: The parsed terms, stored in the key "terms".
+        list[str]: The parsed terms.
     """
     terms = [
         name
@@ -285,34 +287,32 @@ def parse_terms(
         ]
         if course[attr]
     ]
-    return {"terms": terms}
+    return terms
 
 
 def parse_prereqs(
-    course: Mapping[str, Union[bool, float, int, Sequence[str], str]],
-) -> dict[str, str]:
+    course: FireroadRawData,
+) -> str:
     """
     Parses prerequisites from the course.
 
     Args:
-        course (dict[str, Union[bool, float, int, list[str], str]]): The course object.
+        course (FireroadRawData): The course object.
 
     Returns:
-        dict[str, str]: The parsed prereqs, in the key "prereqs".
+        str: The parsed prereqs.
     """
     prereqs: str = course.get("prerequisites", "")  # type: ignore
     for gir, gir_rw in GIR_REWRITE.items():
         prereqs = prereqs.replace(gir, gir_rw)
     if not prereqs:
         prereqs = "None"
-    return {"prereqs": prereqs}
+    return prereqs
 
 
 def get_course_data(
-    courses: MutableMapping[
-        str, Mapping[str, Union[bool, float, int, Sequence[str], str]]
-    ],
-    course: Mapping[str, Union[bool, float, int, Sequence[str], str]],
+    courses: MutableMapping[str, FireroadCourseDict],
+    course: FireroadRawData,
     term: Term,
 ) -> bool:
     """
@@ -321,9 +321,9 @@ def get_course_data(
     True otherwise. The `courses` variable is modified in place.
 
     Args:
-        courses (list[dict[str, Union[bool, float, int, list[str], str]]]):
+        courses (MutableMapping[str, FireroadCourseDict]):
             The list of courses.
-        course (dict[str, Union[bool, float, int, list[str], str]]):
+        course (FireroadRawData):
             The course in particular.
         term (Term): The current term (fall, IAP, or spring).
 
@@ -332,27 +332,15 @@ def get_course_data(
     """
     course_code: str = course["subject_id"]  # type: ignore
     course_num, course_class = course_code.split(".")
-    raw_class: dict[
-        str,
-        Union[
-            str,
-            bool,
-            float,
-            int,
-            Mapping[str, tuple[int, int]],
-            Sequence[str],
-            Mapping[str, Union[Sequence[str], bool]],
-            bool,
-        ],
-    ] = {
+    raw_class: FireroadCourseDict = {
         "number": course_code,
         "course": course_num,
         "subject": course_class,
     }
 
     # terms, prereqs
-    raw_class.update(parse_terms(course))
-    raw_class.update(parse_prereqs(course))
+    raw_class["terms"] = parse_terms(course)
+    raw_class["prereqs"] = parse_prereqs(course)
 
     if term.name not in raw_class["terms"]:  # type: ignore
         return False
@@ -365,17 +353,13 @@ def get_course_data(
     if has_schedule:
         try:
             if term == Term.FA and "schedule_fall" in course:
-                raw_class.update(
-                    parse_schedule(course["schedule_fall"])  # type: ignore
-                )
+                raw_class.update({**parse_schedule(course["schedule_fall"])})
             elif term == Term.JA and "schedule_IAP" in course:
-                raw_class.update(parse_schedule(course["schedule_IAP"]))  # type: ignore
+                raw_class.update({**parse_schedule(course["schedule_IAP"])})
             elif term == Term.SP and "schedule_spring" in course:
-                raw_class.update(
-                    parse_schedule(course["schedule_spring"])  # type: ignore
-                )
+                raw_class.update({**parse_schedule(course["schedule_spring"])})
             else:
-                raw_class.update(parse_schedule(course["schedule"]))  # type: ignore
+                raw_class.update({**parse_schedule(course["schedule"])})
         except ValueError as val_err:
             # if we can't parse the schedule, warn
             # NOTE: parse_schedule will raise a ValueError
@@ -398,7 +382,8 @@ def get_course_data(
         )
 
     # hassH, hassA, hassS, hassE, cih, cihw, rest, lab, partLab
-    raw_class.update(parse_attributes(course))
+    raw_class.update({**parse_attributes(course)})
+
     try:
         raw_class.update(
             {
@@ -407,10 +392,8 @@ def get_course_data(
                 "preparationUnits": course["preparation_units"],
                 "level": course["level"],
                 "isVariableUnits": course["is_variable_units"],
-                "same": ", ".join(course.get("joint_subjects", [])),  # type: ignore
-                "meets": ", ".join(
-                    course.get("meets_with_subjects", [])  # type: ignore
-                ),
+                "same": ", ".join(course.get("joint_subjects", [])),
+                "meets": ", ".join(course.get("meets_with_subjects", [])),
             }
         )
     except KeyError as key_err:
@@ -418,19 +401,21 @@ def get_course_data(
         return False
     # This should be the case with variable-units classes, but just to make
     # sure.
-    if raw_class["isVariableUnits"]:
-        assert raw_class["lectureUnits"] == 0
-        assert raw_class["labUnits"] == 0
-        assert raw_class["preparationUnits"] == 0
+    if course["is_variable_units"]:
+        assert course["lecture_units"] == 0
+        assert course["lab_units"] == 0
+        assert course["preparation_units"] == 0
 
     # Get quarter info if available
-    raw_class.update(parse_quarter_info(course))
+    quarter_info = parse_quarter_info(course)
+    if quarter_info is not None:
+        raw_class["quarterInfo"] = quarter_info
 
     raw_class.update(
         {
             "description": course.get("description", ""),
             "name": course.get("title", ""),
-            "inCharge": ",".join(course.get("instructors", [])),  # type: ignore
+            "inCharge": ",".join(course.get("instructors", [])),
             "virtualStatus": course.get("virtual_status", "") == "Virtual",
         }
     )
@@ -444,23 +429,23 @@ def get_course_data(
         {
             "rating": course.get("rating", 0),
             "hours": course.get("in_class_hours", 0)
-            + course.get("out_of_class_hours", 0),  # type: ignore
+            + course.get("out_of_class_hours", 0),
             "size": course.get("enrollment_number", 0),
         }
     )
 
-    courses[course_code] = raw_class  # type: ignore
+    courses[course_code] = raw_class
     return True
 
 
 @lru_cache(maxsize=None)
-def get_raw_data() -> Any:
+def get_raw_data() -> list[FireroadRawData]:
     """
     Obtains raw data directly from the Fireroad API.
     Helper function for run().
 
     Returns:
-        Any: The raw data from the Fireroad API.
+        list[FireroadRawData]: The raw data from the Fireroad API.
     """
     with urlopen(URL, timeout=15) as raw_data_req:
         text = raw_data_req.read().decode("utf-8")
@@ -490,9 +475,7 @@ def run(is_semester_term: bool) -> None:
                 json.dump({}, fireroad_file)
         return
 
-    courses: MutableMapping[
-        str, Mapping[str, Union[bool, float, int, Sequence[str], str]]
-    ] = {}
+    courses: MutableMapping[str, FireroadCourseDict] = {}
     term = url_name_to_term(get_term_info(is_semester_term)["urlName"])
     missing = 0
 

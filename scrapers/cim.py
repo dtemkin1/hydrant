@@ -69,7 +69,10 @@ def get_courses(section: Tag) -> OrderedDict[str, set[str]]:
     """
     courses: OrderedDict[str, set[str]] = OrderedDict()
     for subsec in section.select(".ci-m__section"):
-        title = subsec.select_one(".ci-m__section-title").text.strip().replace("*", "")  # type: ignore
+        section_title = subsec.select_one(".ci-m__section-title")
+        assert section_title is not None
+
+        title = section_title.get_text(strip=True).replace("*", "")
 
         # If no title, add to the previous subsection
         if title:
@@ -78,7 +81,7 @@ def get_courses(section: Tag) -> OrderedDict[str, set[str]]:
             title, subjects = courses.popitem()
 
         subjects |= {
-            subj.text.strip() for subj in subsec.select(".ci-m__subject-number")
+            subj.get_text(strip=True) for subj in subsec.select(".ci-m__subject-number")
         }
         courses[title] = subjects
     return courses

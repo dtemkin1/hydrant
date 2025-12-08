@@ -48,13 +48,13 @@ import json
 import os.path
 import re
 import socket
-from collections.abc import Iterable, Mapping, MutableMapping
-from typing import Union
+from collections.abc import Iterable, MutableMapping
 from urllib.error import URLError
 from urllib.request import urlopen
 
 from bs4 import BeautifulSoup, Tag
-from bs4.element import NavigableString
+
+from .utils import CourseData
 
 BASE_URL = "http://student.mit.edu/catalog"
 
@@ -93,7 +93,7 @@ def is_not_offered_this_year(html: BeautifulSoup) -> bool:
     if html.find(attrs={"src": "/icns/nooffer.gif"}):
         return True
     if html.find(
-        text=re.compile("not offered regularly; consult department", re.IGNORECASE)
+        string=re.compile("not offered regularly; consult department", re.IGNORECASE)
     ):
         return True
     return False
@@ -129,7 +129,7 @@ def is_repeat_allowed(html: BeautifulSoup):
     return False
 
 
-def get_url(html: BeautifulSoup) -> Union[NavigableString, str]:
+def get_url(html: BeautifulSoup) -> str:
     """
     Finds a URL on the webpage, if it exists.
 
@@ -139,9 +139,9 @@ def get_url(html: BeautifulSoup) -> Union[NavigableString, str]:
     Returns:
         str: Some URL on the webpage, or an empty string if there isn't one
     """
-    url = html.find(text=re.compile("https?://(?!whereis)"))
+    url = html.find(string=re.compile("https?://(?!whereis)"))
     if url:
-        return url  # type: ignore
+        return url.string
     return ""
 
 
@@ -155,12 +155,12 @@ def has_final(html: BeautifulSoup) -> bool:
     Returns:
         bool: Whether the class has a final
     """
-    if html.find(text="+final"):
+    if html.find(string="+final"):
         return True
     return False
 
 
-def get_half(html: BeautifulSoup) -> Union[int, bool]:
+def get_half(html: BeautifulSoup) -> int | bool:
     """
     Checks if the class is a half-semester course.
 
@@ -168,13 +168,13 @@ def get_half(html: BeautifulSoup) -> Union[int, bool]:
         html (BeautifulSoup): the input webpage
 
     Returns:
-        Union[int, bool]: 1 if the class is in the first half of the term,
+        int | bool: 1 if the class is in the first half of the term,
             2 if the class is in the second half of the term, False if it is not a half
             semester course
     """
-    if html.find(text=re.compile("; first half of term")):
+    if html.find(string=re.compile("; first half of term")):
         return 1
-    if html.find(text=re.compile("; second half of term")):
+    if html.find(string=re.compile("; second half of term")):
         return 2
     return False
 
@@ -189,7 +189,7 @@ def is_limited(html: BeautifulSoup) -> bool:
     Returns:
         bool: True if enrollment in the class is limited
     """
-    if html.find(text=LIMITED_REGEX):
+    if html.find(string=LIMITED_REGEX):
         return True
     return False
 
@@ -204,12 +204,12 @@ def is_new(html: BeautifulSoup) -> bool:
     Returns:
         bool: True if the class is new
     """
-    if html.find(text=re.compile(r"\(New\)")):
+    if html.find(string=re.compile(r"\(New\)")):
         return True
     return False
 
 
-def get_course_data(filtered_html: BeautifulSoup) -> dict[str, Union[bool, int, str]]:
+def get_course_data(filtered_html: BeautifulSoup) -> CourseData:
     """
     Gets the metadata about a class from the filtered HTML.
 
@@ -256,21 +256,24 @@ def get_all_catalog_links(initial_hrefs: Iterable[str]) -> list[str]:
     """
     hrefs: list[str] = []
     for initial_href in initial_hrefs:
+        hrefs.append(initial_href)
         with urlopen(f"{BASE_URL}/{initial_href}", timeout=10) as href_req:
             html = BeautifulSoup(href_req.read(), "html.parser")
+
+        content_mini = html.find("div", id="contentmini")
+        if not content_mini:
+            continue
+
         # Links should be in the only table in the #contentmini div
-        tables: Tag = html.find("div", id="contentmini").find_all(  # type: ignore
-            "table"
-        )
-        hrefs.append(initial_href)
+        tables = content_mini.find_all("table")
         for table in tables:
             hrefs.extend(
-                [ele["href"] for ele in table.findAll("a", href=True)]  # type: ignore
+                [ele["href"] for ele in table.find_all("a", href=True)]  # type: ignore
             )
     return hrefs
 
 
-def get_anchors_with_classname(element: Tag) -> Union[list[Tag], None]:
+def get_anchors_with_classname(element: Tag) -> list[Tag] | None:
     """
     Returns the anchors with the class name if the element itself is one or
     anchors are inside of the element. Otherwise, returns None.
@@ -279,7 +282,7 @@ def get_anchors_with_classname(element: Tag) -> Union[list[Tag], None]:
         element (Tag): the input HTML tag
 
     Returns:
-        Union[list[Tag], None]: a list of links, or None
+        list[Tag] | None: a list of links, or None
     """
     anchors = None
     # This is the usualy case, where it's one element
@@ -287,7 +290,7 @@ def get_anchors_with_classname(element: Tag) -> Union[list[Tag], None]:
         anchors = [element]
     # This is the weird case where the <a> is inside a tag
     # And sometimes the tag has multiple <a> e.g. HST.010 and HST.011
-    elif isinstance(element, Tag):  # type: ignore
+    elif isinstance(element, Tag):
         anchors = element.find_all("a", href=False)
     if not anchors:
         return None
@@ -299,7 +302,7 @@ def get_anchors_with_classname(element: Tag) -> Union[list[Tag], None]:
 
 
 def scrape_courses_from_page(
-    courses: MutableMapping[str, Mapping[str, Union[bool, int, str]]], href: str
+    courses: MutableMapping[str, CourseData], href: str
 ) -> None:
     """
     Fills courses with course data from the href
@@ -314,11 +317,10 @@ def scrape_courses_from_page(
     with urlopen(f"{BASE_URL}/{href}", timeout=10) as href_req:
         # The "html.parser" parses pretty badly
         html = BeautifulSoup(href_req.read(), "lxml")
-    classes_content: Tag = html.find(
-        "table", width="100%", border="0"
-    ).find(  # type: ignore
-        "td"
-    )
+    classes_table = html.find("table", width="100%", border="0")
+    assert classes_table is not None
+    classes_content = classes_table.find("td")
+    assert classes_content is not None
 
     # For index idx, contents[idx] corresponds to the html content for the courses in
     # course_nums_list[i]. The reason course_nums_list is a list of lists is because
@@ -360,7 +362,7 @@ def run() -> None:
     try:
         home_hrefs = get_home_catalog_links()
         all_hrefs = get_all_catalog_links(home_hrefs)
-        courses: MutableMapping[str, Mapping[str, Union[bool, int, str]]] = {}
+        courses: MutableMapping[str, CourseData] = {}
         for href in all_hrefs:
             print(f"Scraping page: {href}")
             scrape_courses_from_page(courses, href)

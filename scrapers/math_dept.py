@@ -118,7 +118,7 @@ def get_rows():
     with urlopen("https://math.mit.edu/academics/classes.html", timeout=1) as response:
         soup = BeautifulSoup(response.read().decode("utf-8"), features="lxml")
     course_list: Tag = soup.find("ul", {"class": "course-list"})  # type: ignore
-    rows = course_list.findAll("li", recursive=False)
+    rows = course_list.find_all("li", recursive=False)
     return rows
 
 
@@ -164,13 +164,18 @@ def parse_row(
         str, dict[str, Union[str, tuple[tuple[Sequence[Sequence[int]], str]]]]
     ] = {}
 
-    subject: str = row.find("div", {"class": "subject"}).text  # type: ignore
+    subject_row = row.find("div", {"class": "subject-row"})
+    assert subject_row is not None
+
+    subject = subject_row.string or ""
     subjects = parse_subject(subject)
 
-    where_when: Tag = row.find("div", {"class": "where-when"})  # type: ignore
-    when, where = where_when.findAll("div", recursive=False)
-    where = where.text
-    when = when.text
+    where_when = row.find("div", {"class": "where-when"})
+    assert where_when is not None
+
+    when, where = where_when.find_all("div", recursive=False)
+    where = where.string or ""
+    when = when.string or ""
     if ";" in when:
         # Don't want to handle special case - calculus, already right
         return {}
