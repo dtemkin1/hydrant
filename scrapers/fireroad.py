@@ -28,6 +28,7 @@ import os.path
 import socket
 from collections.abc import MutableMapping
 from functools import lru_cache
+from typing import Literal
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -248,21 +249,20 @@ def parse_attributes(
     Returns:
         Attributes: The attributes of the course.
     """
-    hass_code: str = course.get("hass_attribute", "X")[-1]  # type: ignore
-    comms_code: str = course.get("communication_requirement", "")  # type: ignore
-    gir_attr: str = course.get("gir_attribute", "")  # type: ignore
+    hass_code: list[Literal["H", "A", "S", "E"]] = list(
+        filter(
+            lambda x: x != "X",
+            map(lambda x: x[-1], course.get("hass_attribute", "X").split(",")),
+        )
+    )  # type: ignore
+    comms_code: Literal["", "CI-H", "CI-HW"] = course.get(
+        "communication_requirement", ""
+    )
+    gir_attr: Literal[
+        "", "BIOL", "CAL1", "CAL2", "CHEM", "LAB", "LAB2", "PHY1", "PHY2", "REST"
+    ] = course.get("gir_attribute", "")
 
-    return {
-        "hassH": hass_code == "H",
-        "hassA": hass_code == "A",
-        "hassS": hass_code == "S",
-        "hassE": hass_code == "E",
-        "cih": comms_code == "CI-H",
-        "cihw": comms_code == "CI-HW",
-        "rest": gir_attr == "REST",
-        "lab": gir_attr == "LAB",
-        "partLab": gir_attr == "LAB2",
-    }
+    return {"hass": hass_code, "comms": comms_code, "gir": gir_attr}
 
 
 def parse_terms(
@@ -353,13 +353,13 @@ def get_course_data(
     if has_schedule:
         try:
             if term == Term.FA and "schedule_fall" in course:
-                raw_class.update({**parse_schedule(course["schedule_fall"])})
+                raw_class.update({**parse_schedule(course.get("schedule_fall", ""))})
             elif term == Term.JA and "schedule_IAP" in course:
-                raw_class.update({**parse_schedule(course["schedule_IAP"])})
+                raw_class.update({**parse_schedule(course.get("schedule_IAP", ""))})
             elif term == Term.SP and "schedule_spring" in course:
-                raw_class.update({**parse_schedule(course["schedule_spring"])})
+                raw_class.update({**parse_schedule(course.get("schedule_spring", ""))})
             else:
-                raw_class.update({**parse_schedule(course["schedule"])})
+                raw_class.update({**parse_schedule(course.get("schedule", ""))})
         except ValueError as val_err:
             # if we can't parse the schedule, warn
             # NOTE: parse_schedule will raise a ValueError
@@ -387,11 +387,11 @@ def get_course_data(
     try:
         raw_class.update(
             {
-                "lectureUnits": course["lecture_units"],
-                "labUnits": course["lab_units"],
-                "preparationUnits": course["preparation_units"],
-                "level": course["level"],
-                "isVariableUnits": course["is_variable_units"],
+                "lectureUnits": course.get("lecture_units", 0),
+                "labUnits": course.get("lab_units", 0),
+                "preparationUnits": course.get("preparation_units", 0),
+                "level": course.get("level", 0),
+                "isVariableUnits": course.get("is_variable_units", False),
                 "same": ", ".join(course.get("joint_subjects", [])),
                 "meets": ", ".join(course.get("meets_with_subjects", [])),
             }
@@ -401,10 +401,10 @@ def get_course_data(
         return False
     # This should be the case with variable-units classes, but just to make
     # sure.
-    if course["is_variable_units"]:
-        assert course["lecture_units"] == 0
-        assert course["lab_units"] == 0
-        assert course["preparation_units"] == 0
+    if course.get("is_variable_units", False):
+        assert course.get("lecture_units", 0) == 0
+        assert course.get("lab_units", 0) == 0
+        assert course.get("preparation_units", 0) == 0
 
     # Get quarter info if available
     quarter_info = parse_quarter_info(course)

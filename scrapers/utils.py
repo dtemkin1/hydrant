@@ -22,7 +22,7 @@ import json
 import os.path
 from enum import Enum
 from itertools import zip_longest
-from typing import Any, Dict, Generator, Iterable, Tuple, TypeVar
+from typing import Any, Dict, Generator, Iterable, Literal, Tuple, TypeVar
 
 from typing_extensions import TypedDict
 
@@ -138,15 +138,11 @@ class QuarterInfo(TypedDict, total=False):
 
 
 class Attributes(TypedDict):
-    hassH: bool
-    hassA: bool
-    hassS: bool
-    hassE: bool
-    cih: bool
-    cihw: bool
-    rest: bool
-    lab: bool
-    partLab: bool
+    hass: list[Literal["H", "A", "S", "E"]]
+    comms: Literal["", "CI-H", "CI-HW"]
+    gir: Literal[
+        "", "BIOL", "CAL1", "CAL2", "CHEM", "LAB", "LAB2", "PHY1", "PHY2", "REST"
+    ]
 
 
 class ScheduleInfo(TypedDict, total=False):
@@ -162,7 +158,7 @@ class ScheduleInfo(TypedDict, total=False):
     designSections: list[tuple[list[tuple[int, int]], str]]
 
 
-class FireroadRawData(TypedDict):
+class FireroadRawData(TypedDict, total=False):
     subject_id: str
     title: str
     description: str
@@ -177,8 +173,10 @@ class FireroadRawData(TypedDict):
     meets_with_subjects: list[str]
     quarter_information: str
     hass_attribute: str
-    communication_requirement: str
-    gir_attribute: str
+    communication_requirement: Literal["CI-H", "CI-HW"]
+    gir_attribute: Literal[
+        "BIOL", "CAL1", "CAL2", "CHEM", "LAB", "LAB2", "PHY1", "PHY2", "REST"
+    ]
     offered_fall: bool
     offered_IAP: bool
     offered_spring: bool
@@ -211,15 +209,11 @@ class FireroadCourseDict(TypedDict, total=False):
     recitationRawSections: list[str]
     labRawSections: list[str]
     designRawSections: list[str]
-    hassH: bool
-    hassA: bool
-    hassS: bool
-    hassE: bool
-    cih: bool
-    cihw: bool
-    rest: bool
-    lab: bool
-    partLab: bool
+    hass: list[Literal["H", "A", "S", "E"]]
+    comms: Literal["", "CI-H", "CI-HW"]
+    gir: Literal[
+        "", "BIOL", "CAL1", "CAL2", "CHEM", "LAB", "LAB2", "PHY1", "PHY2", "REST"
+    ]
     lectureUnits: int
     labUnits: int
     preparationUnits: int
