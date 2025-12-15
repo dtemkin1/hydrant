@@ -217,7 +217,7 @@ def get_course_data(filtered_html: BeautifulSoup) -> CourseData:
         filtered_html (BeautifulSoup): the input webpage
 
     Returns:
-        dict[str, Union[bool, int, str]]: metadata about that particular class
+        dict[str, CourseData]: metadata about that particular class
     """
     return {
         "nonext": is_not_offered_next_year(filtered_html),
@@ -327,7 +327,7 @@ def scrape_courses_from_page(
     This function does NOT return a value. Instead, it modifies the `courses` variable.
 
     Args:
-        courses (MutableMapping[str, Mapping[str, Union[bool, int, str]]]):
+        courses (MutableMapping[str, CourseData]):
             a dictionary to fill with course data
         href (str): the relative link to the page to scrape
     """

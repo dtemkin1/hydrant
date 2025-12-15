@@ -21,7 +21,7 @@ import os
 import os.path
 import sys
 from collections.abc import Iterable
-from typing import Any, Union
+from typing import Any
 
 from .utils import get_term_info
 
@@ -139,12 +139,12 @@ def run() -> None:
     url_name_sem = term_info_sem["urlName"]
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    obj_presem: dict[str, Union[dict[str, Any], str, dict[Any, dict[str, Any]]]] = {
+    obj_presem: dict[str, dict[str, Any] | str | dict[Any, dict[str, Any]]] = {
         "termInfo": term_info_presem,
         "lastUpdated": now,
         "classes": courses_presem,
     }
-    obj_sem: dict[str, Union[dict[str, Any], str, dict[Any, dict[str, Any]]]] = {
+    obj_sem: dict[str, dict[str, Any] | str | dict[Any, dict[str, Any]]] = {
         "termInfo": term_info_sem,
         "lastUpdated": now,
         "classes": courses_sem,

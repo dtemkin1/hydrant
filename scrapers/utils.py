@@ -123,6 +123,8 @@ class Term(Enum):
 
 
 class CourseData(TypedDict):
+    """Metadata about a particular class."""
+
     nonext: bool
     repeat: bool
     url: str
@@ -133,11 +135,15 @@ class CourseData(TypedDict):
 
 
 class QuarterInfo(TypedDict, total=False):
+    """Information about the quarter in which a course is offered."""
+
     start: tuple[int, int]
     end: tuple[int, int]
 
 
 class Attributes(TypedDict):
+    """Information about a course's primary attributes, for filtering."""
+
     hass: list[Literal["H", "A", "S", "E"]]
     comms: Literal["", "CI-H", "CI-HW"]
     gir: Literal[
@@ -146,6 +152,8 @@ class Attributes(TypedDict):
 
 
 class ScheduleInfo(TypedDict, total=False):
+    """Information about a course's schedule."""
+
     tba: bool
     sectionKinds: list[str]
     lectureRawSections: list[str]
@@ -159,6 +167,8 @@ class ScheduleInfo(TypedDict, total=False):
 
 
 class FireroadRawData(TypedDict, total=False):
+    """Raw output data from Fireroad about a course."""
+
     subject_id: str
     title: str
     description: str
@@ -194,6 +204,8 @@ class FireroadRawData(TypedDict, total=False):
 
 
 class FireroadCourseDict(TypedDict, total=False):
+    """Processed output data from Fireroad about a course."""
+
     number: str
     course: str
     subject: str

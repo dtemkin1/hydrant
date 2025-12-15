@@ -18,7 +18,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 from pprint import pprint
-from typing import Union
 from urllib.request import urlopen
 
 from bs4 import BeautifulSoup, Tag
@@ -149,7 +148,7 @@ def parse_subject(subject: str) -> list[str]:
 
 def parse_row(
     row: Tag,
-) -> dict[str, dict[str, Union[str, tuple[tuple[Sequence[Sequence[int]], str]]]]]:
+) -> dict[str, dict[str, str | tuple[tuple[Sequence[Sequence[int]], str]]]]:
     """
     Parses the provided row
 
@@ -157,12 +156,10 @@ def parse_row(
         row (bs4.element.Tag): The row that needs to be parsed.
 
     Returns:
-        dict[str, dict[str, Union[str, tuple[tuple[Sequence[Sequence[int]], str]]]]]:
+        dict[str, dict[str, str | tuple[tuple[Sequence[Sequence[int]], str]]]]:
             The parsed row
     """
-    result: dict[
-        str, dict[str, Union[str, tuple[tuple[Sequence[Sequence[int]], str]]]]
-    ] = {}
+    result: dict[str, dict[str, str | tuple[tuple[Sequence[Sequence[int]], str]]]] = {}
 
     subject_row = row.find("div", {"class": "subject-row"})
     assert subject_row is not None
@@ -193,19 +190,17 @@ def parse_row(
     return result
 
 
-def run() -> (
-    dict[str, dict[str, Union[str, tuple[tuple[Sequence[Sequence[int]], str]]]]]
-):
+def run() -> dict[str, dict[str, str | tuple[tuple[Sequence[Sequence[int]], str]]]]:
     """
     The main entry point
 
     Returns:
-        dict[str, dict[str, Union[str, tuple[tuple[Sequence[Sequence[int]], str]]]]]:
+        dict[str, dict[str, str | tuple[tuple[Sequence[Sequence[int]], str]]]]:
             All the schedules
     """
     rows = get_rows()
     overrides: dict[
-        str, dict[str, Union[str, tuple[tuple[Sequence[Sequence[int]], str]]]]
+        str, dict[str, str | tuple[tuple[Sequence[Sequence[int]], str]]]
     ] = {}
 
     for row in rows:
