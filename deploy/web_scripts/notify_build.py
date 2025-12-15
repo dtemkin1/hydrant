@@ -20,7 +20,6 @@ HASH_SECRET = path.join(CI_SECRETS_DIR, "hash_secret")
 GITHUB_TOKEN = path.join(CI_SECRETS_DIR, "github_token")
 
 
-# pylint: disable=too-many-locals
 def main():
     """
     Fetch the artifact from the GitHub API and extract it into the output directory.
@@ -93,8 +92,7 @@ if __name__ == "__main__":
     print("Content-Type: text/plain\r\n\r")
     try:
         print(main())
-    # pylint: disable=broad-except
-    except Exception as e:
+    except Exception:
         print(traceback.format_exc(), file=stdout)
         with open(ERROR_LOG, "w", encoding="utf-8") as fe:
             print(traceback.format_exc(), file=fe)

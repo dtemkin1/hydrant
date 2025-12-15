@@ -101,7 +101,6 @@ def merge_data(
     return result
 
 
-# pylint: disable=too-many-locals
 def run() -> None:
     """
     The main entry point.
@@ -130,7 +129,8 @@ def run() -> None:
         datasets=[fireroad_sem, catalog, cim, overrides_all, overrides_semester],
         keys_to_keep=(set(fireroad_sem) & set(catalog))
         # kind of sketchy? but needed to add a custom class :(
-        | set(overrides_all) | set(overrides_semester),
+        | set(overrides_all)
+        | set(overrides_semester),
     )
 
     term_info_presem = get_term_info(False)

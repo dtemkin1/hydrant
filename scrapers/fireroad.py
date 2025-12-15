@@ -486,7 +486,7 @@ def run(is_semester_term: bool) -> None:
 
     with open(fname, "w", encoding="utf-8") as fireroad_file:
         json.dump(courses, fireroad_file)
-    print(f"Got {len (courses)} courses")
+    print(f"Got {len(courses)} courses")
     print(f"Skipped {missing} courses that are not offered in the {term.value} term")
 
 

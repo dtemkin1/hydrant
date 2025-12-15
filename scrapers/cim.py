@@ -28,7 +28,6 @@ from urllib.request import urlopen
 
 from bs4 import BeautifulSoup, Tag
 
-# pylint: disable=line-too-long
 CIM_URL = "https://registrar.mit.edu/registration-academics/academic-requirements/communication-requirement/ci-m-subjects/subject"
 
 
