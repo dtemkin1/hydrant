@@ -22,9 +22,7 @@ import json
 import os.path
 from enum import Enum
 from itertools import zip_longest
-from typing import Any, Dict, Generator, Iterable, Literal, Tuple, TypeVar
-
-from typing_extensions import TypedDict
+from typing import Any, Dict, Generator, Iterable, Literal, Tuple, TypedDict, TypeVar
 
 GIR_REWRITE = {
     "GIR:CAL1": "Calculus I (GIR)",
