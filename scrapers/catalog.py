@@ -301,6 +301,23 @@ def get_anchors_with_classname(element: Tag) -> list[Tag] | None:
     )
 
 
+def get_classes_content(html: BeautifulSoup) -> Tag:
+    """
+    Gets the main content table containing class information
+
+    Args:
+        html (BeautifulSoup): the input webpage
+
+    Returns:
+        Tag: the main content table
+    """
+    classes_table = html.find("table", width="100%", border="0")
+    assert classes_table is not None
+    classes_content = classes_table.find("td")
+    assert classes_content is not None
+    return classes_content
+
+
 def scrape_courses_from_page(
     courses: MutableMapping[str, CourseData], href: str
 ) -> None:
@@ -317,10 +334,8 @@ def scrape_courses_from_page(
     with urlopen(f"{BASE_URL}/{href}", timeout=10) as href_req:
         # The "html.parser" parses pretty badly
         html = BeautifulSoup(href_req.read(), "lxml")
-    classes_table = html.find("table", width="100%", border="0")
-    assert classes_table is not None
-    classes_content = classes_table.find("td")
-    assert classes_content is not None
+
+    classes_content = get_classes_content(html)
 
     # For index idx, contents[idx] corresponds to the html content for the courses in
     # course_nums_list[i]. The reason course_nums_list is a list of lists is because
