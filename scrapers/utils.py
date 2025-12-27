@@ -1,7 +1,7 @@
 """
 Utility data and functions for the scrapers folder.
 
-Data:
+Constants:
     GIR_REWRITE: dict[str, str]
     TIMESLOTS: int
     DAYS: dict[str, int]
@@ -13,7 +13,8 @@ Functions:
     find_timeslot(day, slot, pm)
     zip_strict(*iterables)
     grouper(iterable, n)
-    get_term_info()
+    get_term_info(sem_term)
+    url_name_to_term(url_name)
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ import json
 import os.path
 from enum import Enum
 from itertools import zip_longest
-from typing import Any, Dict, Generator, Iterable, Literal, Tuple, TypedDict, TypeVar
+from typing import Any, Generator, Iterable, Literal, Tuple, TypedDict, TypeVar
 
 GIR_REWRITE = {
     "GIR:CAL1": "Calculus I (GIR)",
@@ -312,14 +313,14 @@ def grouper(
     return zip_strict(*args)
 
 
-def get_term_info(is_semester_term: bool) -> Dict[str, Any]:
+def get_term_info(sem_term: Literal["sem", "presem"]) -> dict[str, Any]:
     """
     Gets the latest term info from "../public/latestTerm.json" as a dictionary.
-    If is_semester_term = True, looks at semester term (fall/spring).
-    If is_semester_term = False, looks at pre-semester term (summer/IAP)
+    If sem_term = "sem", looks at semester term (fall/spring).
+    If sem_term = "presem", looks at pre-semester term (summer/IAP)
 
     Args:
-        is_semester_term (bool): whether to look at the semester
+        is_semester_term (Literal["sem", "presem"]): whether to look at the semester
             or the pre-semester term.
 
     Returns:
@@ -328,9 +329,9 @@ def get_term_info(is_semester_term: bool) -> Dict[str, Any]:
     fname = os.path.join(os.path.dirname(__file__), "../public/latestTerm.json")
     with open(fname, encoding="utf-8") as latest_term_file:
         term_info = json.load(latest_term_file)
-    if is_semester_term:
-        return term_info["semester"]
 
+    if sem_term == "sem":
+        return term_info["semester"]
     return term_info["preSemester"]
 
 

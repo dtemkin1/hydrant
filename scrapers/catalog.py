@@ -15,6 +15,10 @@ run() scrapes this data and writes it to catalog.json, in the format:
         }
     }
 
+Constants:
+    BASE_URL: str
+    LIMITED_REGEX: re.Pattern[str]
+
 Functions:
     is_not_offered_this_year(html)
     is_not_offered_next_year(html)
@@ -23,23 +27,14 @@ Functions:
     has_final(html)
     get_half(html)
     is_limited(html)
+    is_new(html)
     get_course_data(filtered_html)
     get_home_catalog_links()
     get_all_catalog_links(initial_hrefs)
     get_anchors_with_classname(element)
+    get_classes_content(html)
     scrape_courses_from_page(courses, href)
     run()
-
-Constants:
-    BASE_URL
-    LIMITED_REGEX
-
-Dependencies:
-    json
-    os.path
-    re
-    requests
-    bs4
 """
 
 from __future__ import annotations
@@ -53,6 +48,7 @@ from urllib.error import URLError
 from urllib.request import urlopen
 
 from bs4 import BeautifulSoup, Tag
+from bs4.element import NavigableString
 
 from .utils import CourseData
 
@@ -241,7 +237,8 @@ def get_home_catalog_links() -> Iterable[str]:
     with urlopen(BASE_URL + "/index.cgi", timeout=3) as catalog_req:
         html = BeautifulSoup(catalog_req.read(), "html.parser")
     home_list = html.select_one("td[valign=top][align=left] > ul")
-    return (a["href"] for a in home_list.find_all("a", href=True))  # type: ignore
+    assert home_list is not None
+    return (str(a["href"]) for a in home_list.find_all("a", href=True))
 
 
 def get_all_catalog_links(initial_hrefs: Iterable[str]) -> list[str]:
@@ -267,22 +264,20 @@ def get_all_catalog_links(initial_hrefs: Iterable[str]) -> list[str]:
         # Links should be in the only table in the #contentmini div
         tables = content_mini.find_all("table")
         for table in tables:
-            hrefs.extend(
-                [ele["href"] for ele in table.find_all("a", href=True)]  # type: ignore
-            )
+            hrefs.extend([str(ele["href"]) for ele in table.find_all("a", href=True)])
     return hrefs
 
 
-def get_anchors_with_classname(element: Tag) -> list[Tag] | None:
+def get_anchors_with_classname(element: Tag | NavigableString) -> list[Tag] | None:
     """
     Returns the anchors with the class name if the element itself is one or
     anchors are inside of the element. Otherwise, returns None.
 
     Args:
-        element (Tag): the input HTML tag
+        element (Tag | NavigableString): the input HTML tag
 
     Returns:
-        list[Tag] | None: a list of links, or None
+        list[Tag | NavigableString] | None: a list of links, or None
     """
     anchors = None
     # This is the usualy case, where it's one element
@@ -296,18 +291,14 @@ def get_anchors_with_classname(element: Tag) -> list[Tag] | None:
         return None
 
     # We need this because apparently there are anchors with names such as "PIP"
-    return list(
-        filter(lambda a: re.match(r"\w+\.\w+", a["name"]), anchors)  # type: ignore
-    )
+    return list(filter(lambda a: re.match(r"\w+\.\w+", str(a["name"])), anchors))
 
 
 def get_classes_content(html: BeautifulSoup) -> Tag:
     """
     Gets the main content table containing class information
-
     Args:
         html (BeautifulSoup): the input webpage
-
     Returns:
         Tag: the main content table
     """
@@ -341,22 +332,23 @@ def scrape_courses_from_page(
     # course_nums_list[i]. The reason course_nums_list is a list of lists is because
     # there are courses that are ranges but have the same content
     course_nums_list: list[list[str]] = []
-    contents: list[list[Tag]] = []
+    contents: list[list[Tag | NavigableString]] = []
     for ele in classes_content.contents:
-        anchors = get_anchors_with_classname(ele)  # type: ignore
+        assert isinstance(ele, (Tag, NavigableString))
+        anchors = get_anchors_with_classname(ele)
         if anchors:
-            new_course_nums = [anchor["name"] for anchor in anchors]
+            new_course_nums = [str(anchor["name"]) for anchor in anchors]
             # This means the course listed is a class range (e.g. 11.S196-11.S199)
             # Thus, we continue looking for content but also add an extra course_num
             if contents and not contents[-1]:
-                course_nums_list[-1].extend(new_course_nums)  # type: ignore
+                course_nums_list[-1].extend(new_course_nums)
                 continue
-            course_nums_list.append(new_course_nums)  # type: ignore
+            course_nums_list.append(new_course_nums)
             contents.append([])
         else:
             if not course_nums_list:
                 continue
-            contents[-1].append(ele)  # type: ignore
+            contents[-1].append(ele)
 
     assert len(course_nums_list) == len(contents)
     for course_nums, content in zip(course_nums_list, contents):

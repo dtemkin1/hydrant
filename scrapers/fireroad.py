@@ -18,7 +18,7 @@ Functions:
     parse_prereqs(course)
     get_course_data(courses, course, term)
     get_raw_data()
-    run(is_semester_term)
+    run(sem_term)
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ import os.path
 import socket
 from collections.abc import MutableMapping
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Union
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -48,6 +48,8 @@ from .utils import (
 )
 
 URL = "https://fireroad.mit.edu/courses/all?full=true"
+
+CourseValues = Union[bool, float, int, "list[str]", str]
 
 
 def parse_timeslot(day: str, slot: str, time_is_pm: bool) -> tuple[int, int]:
@@ -453,17 +455,17 @@ def get_raw_data() -> list[FireroadRawData]:
     return data
 
 
-def run(is_semester_term: bool) -> None:
+def run(sem_term: Literal["sem", "presem"]) -> None:
     """
     The main entry point. All data is written to `fireroad.json`.
-    If is_semester_term = True, looks at semester term (fall/spring).
-    If is_semester_term = False, looks at pre-semester term (summer/IAP)
+    If sem_term = "sem", looks at semester term (fall/spring).
+    If sem_term = "presem", looks at pre-semester term (summer/IAP)
 
     Args:
-        is_semester_term (bool): whether to look at the semester
-            or the pre-semester term.
+        sem_term (Literal["sem", "presem"]): whether to look at the
+            semester or the pre-semester term.
     """
-    fname = "fireroad-sem.json" if is_semester_term else "fireroad-presem.json"
+    fname = f"fireroad-{sem_term}.json"
     fname = os.path.join(os.path.dirname(__file__), fname)
 
     try:
@@ -476,7 +478,7 @@ def run(is_semester_term: bool) -> None:
         return
 
     courses: MutableMapping[str, FireroadCourseDict] = {}
-    term = url_name_to_term(get_term_info(is_semester_term)["urlName"])
+    term = url_name_to_term(get_term_info(sem_term)["urlName"])
     missing = 0
 
     for course in data:
@@ -491,5 +493,5 @@ def run(is_semester_term: bool) -> None:
 
 
 if __name__ == "__main__":
-    run(False)
-    run(True)
+    run("sem")
+    run("presem")
