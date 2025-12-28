@@ -208,7 +208,7 @@ class FireroadCourseDict(TypedDict, total=False):
     number: str
     course: str
     subject: str
-    terms: list[str]
+    terms: list[Literal["FA", "JA", "SP", "SU"]]
     prereqs: str
     tba: bool
     sectionKinds: list[str]

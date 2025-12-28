@@ -15,7 +15,12 @@ dependencies = [
 authors = [{ name = "SIPB Hydrant Team", email = "sipb-hydrant@mit.edu" }]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.3.5", "ruff>=0.14.9"]
+dev = [
+    "pytest>=8.3.5",
+    "ruff>=0.14.9",
+    "mypy>=1.14.1",
+    "typing_extensions>=4.13.2",
+]
 
 [project.urls]
 "Homepage" = "https://hydrant.mit.edu/"

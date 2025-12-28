@@ -17,7 +17,7 @@ import os
 import os.path
 import sys
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, Literal, cast
 
 from .utils import get_term_info
 
@@ -134,6 +134,7 @@ def run() -> None:
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
     for sem in sem_types:
+        sem = cast(Literal['presem', 'sem'], sem)
         fireroad_sem = load_json_data(f"fireroad-{sem}.json")
         overrides_sem = load_toml_data("overrides.toml.d", sem)
 

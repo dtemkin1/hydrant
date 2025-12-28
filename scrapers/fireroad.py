@@ -28,9 +28,11 @@ import os.path
 import socket
 from collections.abc import MutableMapping
 from functools import lru_cache
-from typing import Literal, Union
+from typing import Literal, Union, cast
 from urllib.error import URLError
 from urllib.request import urlopen
+
+from typing_extensions import TypeGuard
 
 from .utils import (
     GIR_REWRITE,
@@ -187,7 +189,7 @@ def decode_quarter_date(date: str) -> tuple[int, int] | None:
         month, day = date.split("/")
         return int(month), int(day)
     if " " in date:
-        month, day = MONTHS[(date.split())[0]], (date.split())[1]
+        month, day = str(MONTHS[(date.split())[0]]), (date.split())[1]
         return int(month), int(day)
 
     return None
@@ -251,9 +253,13 @@ def parse_attributes(
     Returns:
         Attributes: The attributes of the course.
     """
+
+    def hass_filter(x: str) -> TypeGuard[Literal["H", "A", "S", "E"]]:
+        return x == "H" or x == "A" or x == "S" or x == "E"
+
     hass_code: list[Literal["H", "A", "S", "E"]] = list(
         filter(
-            lambda x: x != "X",
+            hass_filter,
             map(lambda x: x[-1], course.get("hass_attribute", "X").split(",")),
         )
     )  # type: ignore
@@ -269,7 +275,7 @@ def parse_attributes(
 
 def parse_terms(
     course: FireroadRawData,
-) -> list[str]:
+) -> list[Literal["FA", "JA", "SP", "SU"]]:
     """
     Parses the terms of the course.
 
@@ -277,18 +283,22 @@ def parse_terms(
         course (FireroadRawData): The course object.
 
     Returns:
-        list[str]: The parsed terms.
+        Generator[Literal["FA", "JA", "SP", "SU"]]: The parsed terms.
     """
-    terms = [
-        name
-        for name, attr in [
-            ("FA", "offered_fall"),
-            ("JA", "offered_IAP"),
-            ("SP", "offered_spring"),
-            ("SU", "offered_summer"),
-        ]
-        if course[attr]
-    ]
+
+    FALL = ("FA", "offered_fall")
+    IAP = ("JA", "offered_IAP")
+    SPRING = ("SP", "offered_spring")
+    SUMMER = ("SU", "offered_summer")
+
+    GROUPS = (FALL, IAP, SPRING, SUMMER)
+
+    terms: list[Literal["FA", "JA", "SP", "SU"]] = []
+
+    for name, attr in GROUPS:
+        if course.get(attr, False):
+            terms.append(cast(Literal["FA", "JA", "SP", "SU"], name))
+
     return terms
 
 

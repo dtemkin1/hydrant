@@ -171,9 +171,9 @@ def parse_row(
     where_when = row.find("div", {"class": "where-when"})
     assert where_when is not None
 
-    when, where = where_when.find_all("div", recursive=False)
-    where = where.string or ""
-    when = when.string or ""
+    when_tag, where_tag = where_when.find_all("div", recursive=False)
+    where = where_tag.string or ""
+    when = when_tag.string or ""
     if ";" in when:
         # Don't want to handle special case - calculus, already right
         return {}
