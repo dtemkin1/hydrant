@@ -112,7 +112,7 @@ def get_include(overrides: dict[str, dict[str, Any]]) -> set[str]:
     classes = set()
 
     for override_class, override_vals in overrides.items():
-        if "include" in override_vals.keys() and override_vals["include"]:
+        if override_vals.get("include", False):
             classes.add(override_class)
 
     return classes
@@ -134,7 +134,7 @@ def run() -> None:
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
     for sem in sem_types:
-        sem = cast(Literal['presem', 'sem'], sem)
+        sem = cast(Literal["presem", "sem"], sem)
         fireroad_sem = load_json_data(f"fireroad-{sem}.json")
         overrides_sem = load_toml_data("overrides.toml.d", sem)
 
