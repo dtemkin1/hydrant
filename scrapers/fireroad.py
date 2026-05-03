@@ -158,6 +158,9 @@ def parse_schedule(schedule: str) -> ScheduleInfo:
     for chunk in schedule.split(";"):
         name, *sections = chunk.split(",")
 
+        if name[-1] == "s":  # e.g. "Lectures" instead of "Lecture"
+            name = name[:-1]
+
         if name not in section_kinds:
             print(f"Unknown section kind: {name}")
             continue
