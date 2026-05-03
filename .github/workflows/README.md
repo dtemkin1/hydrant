@@ -17,7 +17,7 @@ This pipeline does NOT trigger on pull requests or commits that only affect back
 
 ## ci-backend.yml
 
-This runs two checks, also for pull requests and commits to the `main` branch:
+This runs three checks, also for pull requests and commits to the `main` branch:
 
 - Black for formatting
 - Pylint for linting
