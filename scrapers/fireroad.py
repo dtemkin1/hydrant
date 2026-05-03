@@ -229,19 +229,15 @@ def parse_quarter_info(course: FireroadRawData, term: Term) -> QuarterInfo | Non
 
     quarter_info: str
 
-    # if any(f"quarter_information_{t.value}" in course for t in Term):
-    #     # This course has quarter information by term, so look up the one for this term
-    #     quarter_info = course.get(
-    #         f"quarter_information_{term.value}", ""  # type: ignore
-    #     )
+    # This course may have quarter information by term
     if term == Term.FA and "quarter_information_fall" in course:
-        quarter_info = course.get("quarter_information_fall", "")
+        quarter_info = course["quarter_information_fall"]
     elif term == Term.JA and "quarter_information_IAP" in course:
-        quarter_info = course.get("quarter_information_IAP", "")
+        quarter_info = course["quarter_information_IAP"]
     elif term == Term.SP and "quarter_information_spring" in course:
-        quarter_info = course.get("quarter_information_spring", "")
+        quarter_info = course["quarter_information_spring"]
     elif term == Term.SU and "quarter_information_summer" in course:
-        quarter_info = course.get("quarter_information_summer", "")
+        quarter_info = course["quarter_information_summer"]
     else:
         # Fall back to general quarter information
         quarter_info = course.get("quarter_information", "")
