@@ -49,6 +49,4 @@ py-version = "3.8"
 disable = "fixme"
 
 [tool.hatch.build.targets.wheel]
-py-version = "3.8"
-disable = "fixme"
 packages = ["scrapers"]

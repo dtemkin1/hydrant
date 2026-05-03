@@ -11,7 +11,6 @@ This folder contains several files. The files tracked by git are:
 - `fireroad.py`
 - `math_dept.py`
 - `package.py`
-- `text_mining.py`
 - `README.md` - this very file!
 - `utils.py`
 - `overrides.toml.d/` - to override scraped data; see README there.
