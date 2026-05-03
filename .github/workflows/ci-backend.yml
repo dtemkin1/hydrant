@@ -2,7 +2,7 @@ name: CI checks for the backend
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
     paths-ignore:
       - "**/*.{ts,tsx,js,md,txt,toml}"
       - "{.vscode,deploy/cron_scripts,public}/**/*"
@@ -12,7 +12,7 @@ on:
       - "{package,package-lock,tsconfig}.json"
       - "scrapers/overrides.toml.d/override-schema.json"
   pull_request:
-    branches: [main]
+    branches: [ main ]
     paths-ignore:
       - "**/*.{ts,tsx,js,md,txt,toml}"
       - "{.vscode,deploy/cron_scripts,public}/**/*"
@@ -22,19 +22,42 @@ on:
       - "{package,package-lock,tsconfig}.json"
       - "scrapers/overrides.toml.d/override-schema.json"
 
-env:
-  python-version: 3.8
-
 jobs:
-  lint:
-    name: Lint (Ruff)
+  black:
+    name: Black
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: "pyproject.toml"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install .[dev]
+      - name: Format code with black
+        run: black --check .
+  isort:
+    name: isort
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: "pyproject.toml"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install .[dev]
+      - name: Format code with isort
+        run: isort --check-only .
+  pylint:
+    name: Pylint
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: ${{ env.python-version }}
+          python-version-file: "pyproject.toml"
           cache: "pip"
       - name: Install dependencies
         run: pip install .[dev]
@@ -48,7 +71,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: ${{ env.python-version }}
+          python-version-file: "pyproject.toml"
           cache: "pip"
       - name: Install dependencies
         run: pip install .[dev]
@@ -62,7 +85,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: ${{ env.python-version }}
+          python-version-file: "pyproject.toml"
           cache: "pip"
       - name: Install dependencies
         run: pip install .

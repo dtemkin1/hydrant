@@ -2,7 +2,7 @@ import { createContext, useEffect, useRef, useState } from "react";
 import { useColorMode } from "../components/ui/color-mode";
 
 import type { TermInfo } from "../lib/dates";
-import type { RawClass } from "../lib/rawClass";
+import type { RawClass, RawPEClass, BuildingInfo } from "./raw";
 import type { HydrantState } from "../lib/schema";
 import { DEFAULT_STATE } from "../lib/schema";
 import type { State } from "../lib/state";
@@ -11,7 +11,26 @@ export interface SemesterData {
   classes: Record<string, RawClass>;
   lastUpdated: string;
   termInfo: TermInfo;
+  pe?: Record<number, Record<string, RawPEClass>>;
+  locations?: Record<string, BuildingInfo>;
 }
+
+export const getStateMaps = (
+  classes: SemesterData["classes"],
+  pe?: SemesterData["pe"],
+  locations?: SemesterData["locations"],
+) => {
+  const classesMap = new Map(Object.entries(classes));
+  const peClassesMap = Object.entries(pe ?? {}).reduce<
+    Record<number, Map<string, RawPEClass>>
+  >((acc, [quarter, peClasses]) => {
+    acc[Number(quarter)] = new Map(Object.entries(peClasses));
+    return acc;
+  }, {});
+  const locationsMap = new Map(Object.entries(locations ?? {}));
+
+  return { classesMap, peClassesMap, locationsMap };
+};
 
 /** Fetch from the url, which is JSON of type T. */
 export const fetchNoCache = async <T>(url: string): Promise<T> => {
@@ -24,9 +43,9 @@ export function useHydrant({ globalState }: { globalState: State }): {
   state: State;
   hydrantState: HydrantState;
 } {
-  const stateRef = useRef<State>(globalState);
+  const stateRef = useRef(globalState);
 
-  const [hydrantState, setHydrantState] = useState<HydrantState>(DEFAULT_STATE);
+  const [hydrantState, setHydrantState] = useState(DEFAULT_STATE);
   const { colorMode, setColorMode, toggleColorMode } = useColorMode();
 
   const state = stateRef.current;
@@ -56,7 +75,7 @@ export function useHydrant({ globalState }: { globalState: State }): {
   return { state, hydrantState };
 }
 
-export const HydrantContext = createContext<ReturnType<typeof useHydrant>>({
+export const HydrantContext = createContext({
   hydrantState: DEFAULT_STATE,
   state: {} as State,
 });

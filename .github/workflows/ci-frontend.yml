@@ -20,9 +20,6 @@ on:
       - ".prettierignore"
       - "scrapers/overrides.toml.d/override-schema.json"
 
-env:
-  node-version: lts/*
-
 jobs:
   prettier:
     name: Prettier
@@ -32,10 +29,10 @@ jobs:
       - name: Install node
         uses: actions/setup-node@v6
         with:
-          node-version: ${{ env.node-version }}
+          node-version-file: "package.json"
           cache: "npm"
       - name: Install node dependencies
-        run: npm install
+        run: npm ci
       - name: Run Prettier
         run: npm run ci-prettier
   lint:
@@ -46,10 +43,10 @@ jobs:
       - name: Install node
         uses: actions/setup-node@v6
         with:
-          node-version: ${{ env.node-version }}
+          node-version-file: "package.json"
           cache: "npm"
       - name: Install node dependencies
-        run: npm install
+        run: npm ci
       - name: Check types
         run: npm run typecheck
       - name: Run ESLint
@@ -62,9 +59,9 @@ jobs:
       - name: Install node
         uses: actions/setup-node@v6
         with:
-          node-version: ${{ env.node-version }}
+          node-version-file: "package.json"
           cache: "npm"
       - name: Install node dependencies
-        run: npm install
+        run: npm ci
       - name: Run tests
         run: npm run test

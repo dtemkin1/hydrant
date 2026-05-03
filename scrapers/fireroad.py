@@ -28,11 +28,10 @@ import os.path
 import socket
 from collections.abc import MutableMapping
 from functools import lru_cache
+import sys
 from typing import Literal, Union, cast
 from urllib.error import URLError
 from urllib.request import urlopen
-
-from typing_extensions import TypeGuard
 
 from .utils import (
     GIR_REWRITE,
@@ -48,6 +47,11 @@ from .utils import (
     grouper,
     url_name_to_term,
 )
+
+if sys.version_info >= (3, 10):
+    from typing import TypeGuard
+else:
+    from typing_extensions import TypeGuard
 
 URL = "https://fireroad.mit.edu/courses/all?full=true"
 
@@ -122,7 +126,11 @@ def parse_section(section: str) -> tuple[list[tuple[int, int]], str]:
 
     for weekdays, is_pm_int, slot in grouper(infos, 3):
         for day in weekdays:
+            # saturday
             if day == "S":
+                continue
+            # sunday
+            if day == "U":
                 continue
             slots.append(parse_timeslot(day, slot, bool(int(is_pm_int))))
 
@@ -195,9 +203,7 @@ def decode_quarter_date(date: str) -> tuple[int, int] | None:
     return None
 
 
-def parse_quarter_info(
-    course: FireroadRawData,
-) -> QuarterInfo | None:
+def parse_quarter_info(course: FireroadRawData, term: Term) -> QuarterInfo | None:
     """
     Parses quarter info from the course.
     If quarter information key is present, returns either start date, end date, or both.
@@ -212,12 +218,31 @@ def parse_quarter_info(
 
     Args:
         course (FireroadRawData): The course object.
+        term (Term): The current term (fall, IAP, spring, or summer).
 
     Returns:
         QuarterInfo | None: The parsed quarter info.
     """
 
-    quarter_info = course.get("quarter_information", "")
+    quarter_info: str
+
+    # if any(f"quarter_information_{t.value}" in course for t in Term):
+    #     # This course has quarter information by term, so look up the one for this term
+    #     quarter_info = course.get(
+    #         f"quarter_information_{term.value}", ""  # type: ignore
+    #     )
+    if term == Term.FA and "quarter_information_fall" in course:
+        quarter_info = course.get("quarter_information_fall", "")
+    elif term == Term.JA and "quarter_information_IAP" in course:
+        quarter_info = course.get("quarter_information_IAP", "")
+    elif term == Term.SP and "quarter_information_spring" in course:
+        quarter_info = course.get("quarter_information_spring", "")
+    elif term == Term.SU and "quarter_information_summer" in course:
+        quarter_info = course.get("quarter_information_summer", "")
+    else:
+        # Fall back to general quarter information
+        quarter_info = course.get("quarter_information", "")
+
     if quarter_info:
         quarter_info_list = quarter_info.split(",")
 
@@ -357,26 +382,30 @@ def get_course_data(
     if term.name not in raw_class["terms"]:  # type: ignore
         return False
 
-    has_schedule = "schedule" in course
+    has_schedule = True
 
     # tba, sectionKinds, lectureSections, recitationSections, labSections,
     # designSections, lectureRawSections, recitationRawSections, labRawSections,
     # designRawSections
-    if has_schedule:
-        try:
-            if term == Term.FA and "schedule_fall" in course:
-                raw_class.update({**parse_schedule(course.get("schedule_fall", ""))})
-            elif term == Term.JA and "schedule_IAP" in course:
-                raw_class.update({**parse_schedule(course.get("schedule_IAP", ""))})
-            elif term == Term.SP and "schedule_spring" in course:
-                raw_class.update({**parse_schedule(course.get("schedule_spring", ""))})
-            else:
-                raw_class.update({**parse_schedule(course.get("schedule", ""))})
-        except ValueError as val_err:
-            # if we can't parse the schedule, warn
-            # NOTE: parse_schedule will raise a ValueError
-            print(f"Can't parse schedule {course_code}: {val_err!r}")
-            has_schedule = False
+    try:
+        if term == Term.FA and "schedule_fall" in course:
+            raw_class.update({**parse_schedule(course["schedule_fall"])})
+        elif term == Term.JA and "schedule_IAP" in course:
+            raw_class.update({**parse_schedule(course["schedule_IAP"])})
+        elif term == Term.SP and "schedule_spring" in course:
+            raw_class.update({**parse_schedule(course["schedule_spring"])})
+        elif term == Term.SU and "schedule_summer" in course:
+            raw_class.update({**parse_schedule(course["schedule_summer"])})
+        else:
+            raw_class.update({**parse_schedule(course["schedule"])})  # type: ignore
+    except KeyError:
+        has_schedule = False
+    except (ValueError, AssertionError) as val_err:
+        # if we can't parse the schedule, warn
+        # NOTE: parse_schedule will raise a ValueError
+        print(f"Can't parse schedule {course_code}: {val_err!r}")
+        has_schedule = False
+
     if not has_schedule:
         raw_class.update(
             {
@@ -419,7 +448,7 @@ def get_course_data(
         assert course.get("preparation_units", 0) == 0
 
     # Get quarter info if available
-    quarter_info = parse_quarter_info(course)
+    quarter_info = parse_quarter_info(course, term)
     if quarter_info is not None:
         raw_class["quarterInfo"] = quarter_info
 

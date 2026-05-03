@@ -1,18 +1,26 @@
 import { nanoid } from "nanoid";
 
-import type { Timeslot, Activity } from "./activity";
-import { NonClass } from "./activity";
+import type {
+  Timeslot,
+  Activity,
+  Section,
+  SectionLockOption,
+  Sections,
+} from "./activity";
+import { CustomActivity } from "./activity";
 import { scheduleSlots } from "./calendarSlots";
-import type { Section, SectionLockOption, Sections } from "./class";
 import { Class } from "./class";
 import type { Term } from "./dates";
 import type { ColorScheme } from "./colors";
 import { chooseColors, fallbackColor, getDefaultColorScheme } from "./colors";
-import type { RawClass, RawTimeslot } from "./rawClass";
+import type { MeasurementSystem } from "./measurement";
+import { getDefaultMeasurementSystem } from "./measurement";
+import type { RawClass, RawTimeslot, RawPEClass, BuildingInfo } from "./raw";
 import { Store } from "./store";
 import { sum, urldecode, urlencode } from "./utils";
 import type { HydrantState, Preferences, Save } from "./schema";
 import { BANNER_LAST_CHANGED, DEFAULT_PREFERENCES } from "./schema";
+import { PEClass } from "./pe";
 
 /**
  * Global State object. Maintains global program state (selected classes,
@@ -21,12 +29,16 @@ import { BANNER_LAST_CHANGED, DEFAULT_PREFERENCES } from "./schema";
 export class State {
   /** Map from class number to Class object. */
   classes: Map<string, Class>;
+  /** Map from class number to PEClass object. */
+  peClasses: Map<string, PEClass>;
   /** Possible section choices. */
   options: Section[][] = [[]];
   /** Current number of schedule conflicts. */
   conflicts = 0;
   /** Browser-specific saved state. */
   store: Store;
+  /** Stores unknown subjects */
+  unknownSubjects = new Set<string>();
 
   // The following are React state, so should be private. Even if we pass the
   // State object to React components, they shouldn't be looking at these
@@ -41,8 +53,10 @@ export class State {
   private viewedActivity: Activity | undefined;
   /** Selected class activities. */
   private selectedClasses: Class[] = [];
-  /** Selected non-class activities. */
-  private selectedNonClasses: NonClass[] = [];
+  /** Selected PE and Wellness classes. */
+  private selectedPEClasses: PEClass[] = [];
+  /** Selected custom activities. */
+  private selectedCustomActivities: CustomActivity[] = [];
   /** Selected schedule option; zero-indexed. */
   private selectedOption = 0;
   /** Currently loaded save slot, empty if none of them. */
@@ -53,6 +67,8 @@ export class State {
   private preferences: Preferences = DEFAULT_PREFERENCES;
   /** Set of starred class numbers */
   private starredClasses = new Set<string>();
+  /** Set of starred PE class numbers */
+  private starredPEClasses = new Set<string>();
 
   /** React callback to update state. */
   callback: ((state: HydrantState) => void) | undefined;
@@ -61,6 +77,9 @@ export class State {
 
   constructor(
     rawClasses: Map<string, RawClass>,
+    rawPEClasses: Record<number, Map<string, RawPEClass>>,
+    /** A mapping from building numbers to BuildingInfo objects. */
+    public readonly locations: Map<string, BuildingInfo>,
     /** The current term object. */
     public readonly term: Term,
     /** String representing last update time. */
@@ -69,16 +88,29 @@ export class State {
     public readonly latestUrlName: string,
   ) {
     this.classes = new Map();
+    this.peClasses = new Map();
     this.store = new Store(term.toString());
     rawClasses.forEach((cls, number) => {
       this.classes.set(number, new Class(cls, this.colorScheme));
+    });
+    Object.entries(rawPEClasses).forEach(([quarter, map]) => {
+      map.forEach((cls, number) => {
+        this.peClasses.set(
+          `Q${quarter}.${number}`,
+          new PEClass(cls, this.colorScheme),
+        );
+      });
     });
     this.initState();
   }
 
   /** All activities. */
   get selectedActivities(): Activity[] {
-    return [...this.selectedClasses, ...this.selectedNonClasses];
+    return [
+      ...this.selectedClasses,
+      ...this.selectedPEClasses,
+      ...this.selectedCustomActivities,
+    ];
   }
 
   /** The color scheme. */
@@ -89,6 +121,21 @@ export class State {
 
     // If no color scheme is set, use the default one
     return getDefaultColorScheme();
+  }
+
+  /** The measurement system. */
+  get measurementSystem(): MeasurementSystem {
+    if (this.preferences.measurementSystem) {
+      return this.preferences.measurementSystem;
+    }
+
+    // If no measurement system is set, use the default one
+    return getDefaultMeasurementSystem();
+  }
+
+  /** The count of number of finals a student has. */
+  get finalsCount(): number {
+    return this.selectedClasses.filter((cls) => cls.flags.final).length;
   }
 
   //========================================================================
@@ -110,17 +157,21 @@ export class State {
   /**
    * Adds an activity, selects it, and updates.
    *
-   * @param activity - Activity to be added. If null, creates a new NonClass
+   * @param activity - Activity to be added. If null, creates a new CustomActivity
    *   and adds it.
    */
   addActivity(activity?: Activity): void {
-    const toAdd = activity ?? new NonClass(this.colorScheme);
+    const toAdd = activity ?? new CustomActivity(this.colorScheme);
     this.setViewedActivity(toAdd);
     if (this.isSelectedActivity(toAdd)) return;
     if (toAdd instanceof Class) {
       this.selectedClasses.push(toAdd);
-    } else {
-      this.selectedNonClasses.push(toAdd);
+    }
+    if (toAdd instanceof PEClass) {
+      this.selectedPEClasses.push(toAdd);
+    }
+    if (toAdd instanceof CustomActivity) {
+      this.selectedCustomActivities.push(toAdd);
     }
     this.updateActivities();
   }
@@ -132,8 +183,12 @@ export class State {
       this.selectedClasses = this.selectedClasses.filter(
         (activity_) => activity_.id !== activity.id,
       );
+    } else if (activity instanceof PEClass) {
+      this.selectedPEClasses = this.selectedPEClasses.filter(
+        (activity_) => activity_.id !== activity.id,
+      );
     } else {
-      this.selectedNonClasses = this.selectedNonClasses.filter(
+      this.selectedCustomActivities = this.selectedCustomActivities.filter(
         (activity_) => activity_.id !== activity.id,
       );
       this.setViewedActivity(undefined);
@@ -165,41 +220,44 @@ export class State {
   }
 
   //========================================================================
-  // NonClass handlers
+  // CustomActivity handlers
 
   /** Rename a given non-activity. */
-  renameNonClass(nonClass: NonClass, name: string): void {
-    const nonClass_ = this.selectedNonClasses.find(
-      (nonClass_) => nonClass_.id === nonClass.id,
+  renameCustomActivity(customActivity: CustomActivity, name: string): void {
+    const customActivity_ = this.selectedCustomActivities.find(
+      (customActivity_) => customActivity_.id === customActivity.id,
     );
 
-    if (!nonClass_) return;
+    if (!customActivity_) return;
 
-    nonClass_.name = name;
+    customActivity_.name = name;
     this.updateState();
   }
 
-  /** Changes the room for a given non-class. */
-  relocateNonClass(nonClass: NonClass, room: string | undefined): void {
-    const nonClass_ = this.selectedNonClasses.find(
-      (nonClass_) => nonClass_.id === nonClass.id,
+  /** Changes the room for a given custom activity. */
+  relocateCustomActivity(
+    customActivity: CustomActivity,
+    room: string | undefined,
+  ): void {
+    const customActivity_ = this.selectedCustomActivities.find(
+      (customActivity_) => customActivity_.id === customActivity.id,
     );
 
-    if (!nonClass_) return;
+    if (!customActivity_) return;
 
-    nonClass_.room = room;
+    customActivity_.room = room;
     this.updateState();
   }
 
   /** Add the timeslot to currently viewed activity. */
-  addTimeslot(nonClass: NonClass, slot: Timeslot): void {
-    nonClass.addTimeslot(slot);
+  addTimeslot(customActivity: CustomActivity, slot: Timeslot): void {
+    customActivity.addTimeslot(slot);
     this.updateActivities();
   }
 
   /** Remove all equal timeslots from currently viewed activity. */
-  removeTimeslot(nonClass: NonClass, slot: Timeslot): void {
-    nonClass.removeTimeslot(slot);
+  removeTimeslot(customActivity: CustomActivity, slot: Timeslot): void {
+    customActivity.removeTimeslot(slot);
     this.updateActivities();
   }
 
@@ -219,7 +277,16 @@ export class State {
       units: sum(this.selectedClasses.map((cls) => cls.totalUnits)),
       hours: sum(this.selectedActivities.map((activity) => activity.hours)),
       warnings: Array.from(
-        new Set(this.selectedClasses.flatMap((cls) => cls.warnings.messages)),
+        new Set([
+          ...this.selectedActivities.flatMap((cls) =>
+            "warnings" in cls ? cls.warnings.messages : [],
+          ),
+          ...(this.unknownSubjects.size > 0
+            ? [
+                `Unknown subjects: ${Array.from(this.unknownSubjects).join(", ")}`,
+              ]
+            : []),
+        ]),
       ),
       saveId: this.saveId,
       saves: this.saves,
@@ -248,7 +315,11 @@ export class State {
    */
   updateActivities(save = true): void {
     chooseColors(this.selectedActivities, this.colorScheme);
-    const result = scheduleSlots(this.selectedClasses, this.selectedNonClasses);
+    const result = scheduleSlots(
+      this.selectedClasses,
+      this.selectedPEClasses,
+      this.selectedCustomActivities,
+    );
     this.options = result.options;
     this.conflicts = result.conflicts;
     this.selectOption();
@@ -261,15 +332,17 @@ export class State {
    * Used for the "fits schedule" filter in ClassTable. Might be slow; careful
    * with using this too frequently.
    */
-  fitsSchedule(cls: Class): boolean {
+  fitsSchedule(cls: Class | PEClass): boolean {
     return (
       !this.isSelectedActivity(cls) &&
       (cls.sections.length === 0 ||
         (this.selectedClasses.length === 0 &&
-          this.selectedNonClasses.length === 0) ||
+          this.selectedPEClasses.length === 0 &&
+          this.selectedCustomActivities.length === 0) ||
         scheduleSlots(
-          this.selectedClasses.concat([cls]),
-          this.selectedNonClasses,
+          this.selectedClasses.concat(cls instanceof Class ? [cls] : []),
+          this.selectedPEClasses.concat(cls instanceof PEClass ? [cls] : []),
+          this.selectedCustomActivities,
         ).conflicts === this.conflicts)
     );
   }
@@ -283,10 +356,10 @@ export class State {
 
   /** Star or unstar a class */
   toggleStarClass(cls: Class): void {
-    if (this.starredClasses.has(cls.number)) {
-      this.starredClasses.delete(cls.number);
+    if (this.starredClasses.has(cls.id)) {
+      this.starredClasses.delete(cls.id);
     } else {
-      this.starredClasses.add(cls.number);
+      this.starredClasses.add(cls.id);
     }
     this.store.set("starredClasses", Array.from(this.starredClasses));
     this.updateState();
@@ -294,14 +367,40 @@ export class State {
 
   /** Check if a class is starred */
   isClassStarred(cls: Class): boolean {
-    return this.starredClasses.has(cls.number);
+    return this.starredClasses.has(cls.id);
   }
 
   /** Get all starred classes */
   getStarredClasses(): Class[] {
     return Array.from(this.starredClasses)
-      .map((number) => this.classes.get(number))
+      .map((id) => this.classes.get(id))
       .filter((cls): cls is Class => cls !== undefined);
+  }
+
+  /** Star or unstar a class */
+  toggleStarPEClass(cls: PEClass): void {
+    if (this.starredPEClasses.has(cls.id)) {
+      this.starredPEClasses.delete(cls.id);
+    } else {
+      this.starredPEClasses.add(cls.id);
+    }
+    this.store.set("starredPEClasses", Array.from(this.starredPEClasses));
+    this.updateState();
+  }
+
+  /** Check if a class is starred */
+  isPEClassStarred(cls: PEClass): boolean {
+    return this.starredPEClasses.has(cls.id);
+  }
+
+  /** Get all starred classes */
+  getStarredPEClasses(): PEClass[] {
+    return (
+      Array.from(this.starredPEClasses)
+        // also look up Q3 for backwards compatibility
+        .map((id) => this.peClasses.get(id) ?? this.peClasses.get(`Q3.${id}`))
+        .filter((cls): cls is PEClass => cls !== undefined)
+    );
   }
 
   get showBanner(): boolean {
@@ -318,13 +417,39 @@ export class State {
     this.updateState();
   }
 
+  /** Get latest quarter of PE classes */
+  get latestQuarter(): number {
+    const allQuarters = new Set<number>();
+    this.peClasses.forEach((cls) => {
+      const quarter = cls.rawClass.quarter;
+      allQuarters.add(quarter);
+    });
+
+    // for 1 < 2 < 5 < 3 < 4
+    const quarterOrder: Record<number, number> = {
+      1: 0,
+      2: 1,
+      // 5 is iap for some reason :(
+      5: 2,
+      3: 3,
+      4: 4,
+    };
+
+    const sortedQuarters = Array.from(allQuarters).sort((a, b) => {
+      return quarterOrder[a] - quarterOrder[b];
+    });
+
+    return sortedQuarters[sortedQuarters.length - 1];
+  }
+
   //========================================================================
   // Loading and saving
 
   /** Clear (almost) all program state. This doesn't clear class state. */
   reset(): void {
     this.selectedClasses = [];
-    this.selectedNonClasses = [];
+    this.selectedPEClasses = [];
+    this.selectedCustomActivities = [];
     this.selectedOption = 0;
   }
 
@@ -332,10 +457,13 @@ export class State {
   deflate() {
     return [
       this.selectedClasses.map((cls) => cls.deflate()),
-      this.selectedNonClasses.length > 0
-        ? this.selectedNonClasses.map((nonClass) => nonClass.deflate())
+      this.selectedCustomActivities.length > 0
+        ? this.selectedCustomActivities.map((customActivity) =>
+            customActivity.deflate(),
+          )
         : null,
       this.selectedOption,
+      this.selectedPEClasses.map((cls) => cls.deflate()),
     ];
   }
 
@@ -352,28 +480,58 @@ export class State {
   ): void {
     if (!obj) return;
     this.reset();
-    const [classes, nonClasses, selectedOption] = obj as [
+    const [classes, customActivities, selectedOption, peClasses] = obj as [
       (string | number | string[])[][],
       (string | RawTimeslot[])[][] | null,
       number | undefined,
+      (string | number | string[])[][] | undefined, // undefined for backwards compatability
     ];
     for (const deflated of classes) {
       const cls =
         typeof deflated === "string"
           ? this.classes.get(deflated)
           : this.classes.get((deflated as string[])[0]);
-      if (!cls) continue;
+      // if we can't find the class, add it to unknownSubjects so we can show a warning
+      if (!cls) {
+        const subject =
+          typeof deflated === "string" ? deflated : (deflated as string[])[0];
+
+        this.unknownSubjects.add(subject);
+        continue;
+      }
+
       cls.inflate(deflated);
       this.selectedClasses.push(cls);
     }
-    if (nonClasses) {
-      for (const deflated of nonClasses) {
-        const nonClass = new NonClass(this.colorScheme);
-        nonClass.inflate(deflated);
-        this.selectedNonClasses.push(nonClass);
+    if (customActivities) {
+      for (const deflated of customActivities) {
+        const customActivity = new CustomActivity(this.colorScheme);
+        customActivity.inflate(deflated);
+        this.selectedCustomActivities.push(customActivity);
       }
     }
     this.selectedOption = selectedOption ?? 0;
+    for (const deflated of peClasses ?? []) {
+      // also look up Q3 for backwards compatibility
+      const cls =
+        typeof deflated === "string"
+          ? (this.peClasses.get(deflated) ??
+            // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+            this.peClasses.get(`Q3.${deflated}`))
+          : (this.peClasses.get((deflated as string[])[0]) ??
+            this.peClasses.get(`Q3.${(deflated as string[])[0]}`));
+      // if we can't find the class, add it to unknownSubjects so we can show a warning
+      if (!cls) {
+        const subject =
+          typeof deflated === "string" ? deflated : (deflated as string[])[0];
+
+        this.unknownSubjects.add(subject);
+        continue;
+      }
+
+      cls.inflate(deflated);
+      this.selectedPEClasses.push(cls);
+    }
     this.saveId = "";
     this.updateActivities(false);
   }

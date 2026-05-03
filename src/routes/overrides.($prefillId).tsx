@@ -111,9 +111,9 @@ export async function clientLoader({ params }: Route.ClientLoaderArgs) {
 export default function App({ loaderData }: Route.ComponentProps) {
   const { prefillData, prefillId } = loaderData;
 
-  const [data, setData] = useState<Record<string, unknown>[]>(prefillData);
-  const [error, setError] = useState<boolean>(false);
-  const [selected, setSelected] = useState<string[]>([prefillId]);
+  const [data, setData] = useState(prefillData);
+  const [error, setError] = useState(false);
+  const [selected, setSelected] = useState([prefillId]);
 
   // TODO IN NEXT COMMIT: Make ui schema match what it did before :(
   const uischema = useMemo<UiSchema>(() => {
@@ -264,30 +264,6 @@ export default function App({ loaderData }: Route.ComponentProps) {
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     uiSchema.items.description["ui:widget"] = "textarea";
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    uiSchema.items.level["ui:enumNames"] = ["Undergraduate", "Graduate"];
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    uiSchema.items.hass["ui:enumNames"] = [
-      "HASS-H",
-      "HASS-A",
-      "HASS-S",
-      "HASS-E",
-    ];
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    uiSchema.items.comms["ui:enumNames"] = ["Not CI-H", "CI-H", "CI-HW"];
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    uiSchema.items.gir["ui:enumNames"] = [
-      "Not a GIR",
-      "Biology",
-      "Calculus 1",
-      "Calculus 2",
-      "Chemistry",
-      "Institute Lab",
-      "Partial LAB",
-      "Physics 1",
-      "Physics 2",
-      "REST",
-    ];
 
     return uiSchema;
   }, [data.length, error]);
@@ -402,13 +378,13 @@ export default function App({ loaderData }: Route.ComponentProps) {
           uiSchema={uischema}
           validator={validator}
           formData={data}
-          showErrorList={false}
+          showErrorList={"top"}
           liveValidate={"onChange"}
           experimental_defaultFormStateBehavior={{
-            arrayMinItems: { populate: "all" },
+            arrayMinItems: { populate: "never" },
             allOf: "skipDefaults",
             constAsDefaults: "always",
-            emptyObjectFields: "populateAllDefaults",
+            emptyObjectFields: "populateRequiredDefaults",
             mergeDefaultsIntoFormData: "useFormDataIfPresent",
           }}
           liveOmit={"onChange"}

@@ -19,11 +19,24 @@ Functions:
 
 from __future__ import annotations
 
+import csv
 import json
 import os.path
 from enum import Enum
 from itertools import zip_longest
-from typing import Any, Generator, Iterable, Literal, Tuple, TypedDict, TypeVar
+from typing import (
+    Any,
+    Generator,
+    Iterable,
+    Literal,
+    TypeVar,
+    TypedDict,
+    Union,
+    get_args,
+    get_origin,
+)
+from urllib.parse import urlparse
+from urllib.request import urlopen
 
 GIR_REWRITE = {
     "GIR:CAL1": "Calculus I (GIR)",
@@ -270,7 +283,7 @@ def find_timeslot(day: str, slot: str, is_slot_pm: bool) -> int:
 _T = TypeVar("_T")
 
 
-def zip_strict(*iterables: Iterable[_T]) -> Generator[Tuple[_T, ...], Any, None]:
+def zip_strict(*iterables: Iterable[_T]) -> Generator[tuple[_T, ...], Any, None]:
     """
     Helper function for grouper.
     Groups values of the iterator on the same iteration together.
@@ -290,7 +303,7 @@ def zip_strict(*iterables: Iterable[_T]) -> Generator[Tuple[_T, ...], Any, None]
 
 def grouper(
     iterable: Iterable[_T], group_size: int
-) -> Generator[Tuple[_T, ...], Any, None]:
+) -> Generator[tuple[_T, ...], Any, None]:
     """
     Groups items of the iterable in equally spaced blocks of group_size items.
     If the iterable's length ISN'T a multiple of group_size, you'll get a
@@ -361,3 +374,62 @@ def url_name_to_term(url_name: str) -> Term:
         return Term.SU
 
     raise ValueError(f"Invalid term {url_name[0]}")
+
+
+def is_url(path_string: str) -> bool:
+    """Check if the string has a URL-like scheme and network location."""
+    try:
+        result = urlparse(path_string)
+        # Check if both a scheme (e.g., 'http', 'https')
+        # AND a network location (e.g., 'www.google.com') are present
+        return bool(result.scheme and result.netloc)
+    except ValueError:
+        return False
+
+
+def read_csv(path: str, types_dict: type, encoding: str = "utf-8") -> list:
+    """
+    Parses data from file according to a specific format from a CSV
+
+    Args:
+        filepath (str): The path to the CSV file, either file path or URL
+        types_dict (type): The TypedDict type representing the data format
+
+    Returns:
+        list[types_dict]: A list of TypedDict dictionaries representing the parsed data
+    """
+
+    assert hasattr(types_dict, "__annotations__"), "types_dict must be a TypedDict type"
+
+    data = []
+    types = getattr(types_dict, "__annotations__")
+    cols = types.keys()
+
+    path_is_url = is_url(path)
+
+    if path_is_url:
+        with_open = urlopen(path, timeout=15)
+    else:
+        with_open = open(path, mode="r", newline="", encoding=encoding)
+
+    with with_open as csvfile:
+        reader = csv.DictReader(
+            csvfile
+            if not path_is_url
+            else csvfile.read().decode(encoding)[1:].splitlines()  # type: ignore
+        )
+        for row in reader:
+            cols_needed = [
+                col
+                for col in cols
+                if not (
+                    get_origin(types[col]) is Union
+                    and type(None) in get_args(types[col])
+                )
+            ]
+            assert (
+                set(cols_needed) - set(row.keys()) == set()
+            ), f"Missing columns in CSV file: {set(cols_needed) - set(row.keys())}"
+            data.append({col: row[col] for col in cols if col in row})  # type: ignore
+
+    return data

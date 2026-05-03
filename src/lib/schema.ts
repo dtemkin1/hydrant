@@ -1,8 +1,16 @@
 import type { Activity } from "./activity";
 import type { ColorScheme } from "./colors";
+import type { MeasurementSystem } from "./measurement";
+
+export enum ClassType {
+  ACADEMIC = "Academic",
+  PEW = "PE & Wellness",
+}
 
 /** The date the content of the banner was last changed. */
-export const BANNER_LAST_CHANGED = new Date("2025-11-24T17:15:00Z").valueOf();
+export const BANNER_LAST_CHANGED = new Date("2026-04-23T17:00:00Z").valueOf();
+export const BANNER_MESSAGE =
+  "Fall 2026 classes are now available on Hydrant! Pre-registration opens on May 1 on WebSIS.";
 
 /** A save has an ID and a name. */
 export interface Save {
@@ -18,6 +26,7 @@ export interface Preferences {
   defaultScheduleId: string | null;
   showBanner: boolean;
   showBannerChanged?: number;
+  measurementSystem: MeasurementSystem | null;
 }
 
 /** The default user preferences. */
@@ -28,6 +37,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   defaultScheduleId: null,
   showBanner: true,
   showBannerChanged: undefined,
+  measurementSystem: null,
 };
 
 /** React state. */
