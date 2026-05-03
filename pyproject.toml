@@ -41,10 +41,12 @@ py_version = 38
 profile = "black"
 
 [tool.pytest.ini_options]
+addopts = "--doctest-modules"
 
-
-docstring-code-format = true
 [tool.pylint.main]
+max-line-length = 88
+py-version = "3.8"
+disable = "fixme"
 
 [tool.hatch.build.targets.wheel]
 py-version = "3.8"

@@ -61,10 +61,11 @@ jobs:
           cache: "pip"
       - name: Install dependencies
         run: pip install .[dev]
-      - name: Analysing the code with ruff
-        run: ruff check --output-format=github .
-  test:
-    name: Test (Pytest)
+      - name: Analysing the code with pylint
+        run: |
+          pylint $(git ls-files '*.py')
+  pytest:
+    name: Pytest
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
