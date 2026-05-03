@@ -2,7 +2,7 @@ name: CI checks for the backend
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     paths-ignore:
       - "**/*.{ts,tsx,js,md,txt,toml}"
       - "{.vscode,deploy/cron_scripts,public}/**/*"
@@ -12,7 +12,7 @@ on:
       - "{package,package-lock,tsconfig}.json"
       - "scrapers/overrides.toml.d/override-schema.json"
   pull_request:
-    branches: [ main ]
+    branches: [main]
     paths-ignore:
       - "**/*.{ts,tsx,js,md,txt,toml}"
       - "{.vscode,deploy/cron_scripts,public}/**/*"
