@@ -51,4 +51,4 @@ It is mainly intended to serve as a data source for the frontend, which is the r
 
 This folder is actually a subfolder of a larger git repository. If you want to contribute to this repository, submit a pull request to <https://github.com/sipb/hydrant> and we'll merge it if it looks good.
 
-Depending on how you work, you might find `ruff` and/or running individual programs one at a time and then playing around with the Python shell to be helpful.
+Depending on how you work, you might find `pylint` and/or running individual programs one at a time and then playing around with the Python shell to be helpful.
